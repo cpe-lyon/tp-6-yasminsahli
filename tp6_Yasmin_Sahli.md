@@ -62,27 +62,63 @@ Détails pour chaque sous-réseau :
 ## 2. Préparation de l'environnement
 
 2 - 
-Pour lister les interfaces réseau, on utilise ```ip l```. L'interface "lo" correspond à l'interface de loopback. Cette dernière permet de contacter la machine locale sans passer par une interface qui serait accessible de l'extérieur.
+Pour lister les interfaces réseau, on utilise 
+```
+ip l
+```
+L'interface "lo" correspond à l'interface de loopback. Elle permet de contacter la machine locale sans passer par une interface qui serait accessible de l'extérieur.
 
 3 - 
-Pour désinstaller ce paquet, on utilise ```sudo apt purge cloud-init```.
+Pour désinstaller ce paquet, on fait : 
+```
+sudo apt purge cloud-init
+```
 
 4 - 
-On utilise la commande ```sudo nano /etc/hosts```. On modiife ensuite la ligne correspondant au serveur :
-```127.0.0.1 serveur -> 127.0.0.1 serveur serveur.tpadmin.local```
+On utilise la commande 
+```
+sudo nano /etc/hosts
+```
+On modiife ensuite la ligne correspondant au serveur :
+```
+127.0.0.1 serveur -> 127.0.0.1 serveur serveur.tpadmin.local
+```
 
 ## 3. Installation du serveur DHCP 
 
 1 - 
-On commence par mettre à jour les paquets installés avec ```sudo apt update ; sudo apt upgrade```. 
-On installe ensuite le paquet à l'aide de la commande ```sudo apt install isc-dhcp-server```.
+On commence par mettre à jour les paquets installés avec 
+```
+sudo apt update 
+sudo apt upgrade
+```
+On installe ensuite le paquet à l'aide de la commande : 
+```
+sudo apt install isc-dhcp-server
+sudo nano /etc/dhcp/dhcpd.conf
+touch 01-netcfg.yaml
+sudo nano 01-netcfg.yaml
+```
+On copie colle la slide 19 du cours en remplacant enp0s3 par enp0s8
 
 2 - 
-On vérifie en premier lieu quelle carte réseau est concernée à l'aide de ```ip a```. Une fois identifiée, on modifie l IP avec ```sudo ip addr add 192.168.100.1```. On vérifie ensuite que le changement a bien été appliqué avec ```ip a```.
+On vérifie en premier lieu quelle carte réseau est concernée à l'aide de :
+```
+ip a
+```
+Une fois identifiée, on modifie l'adresse IP avec :
+```
+sudo netplan try 
+sudo netplan apply 
+```
+On vérifie ensuite que le changement a bien été appliqué avec : 
+```
+ip a
+```
 
 3 - 
 
-```bash
+```
 default-lease-time 120;
 max-lease-time 600;
 authoritative; #DHCP officiel pour notre réseau
@@ -95,44 +131,54 @@ subnet 192.168.100.0 netmask 255.255.255.0 { #configuration du sous-réseau 192.
     option domain-name-servers 192.168.100.1; #le serveur sert aussi de serveur DNS
 }
 ``
+default-lease-time : Durée de bail par défaut
+L'adresse ip assigné par DHCP n'est pas permanent et expire au bout d'un certain temps, c'est ce qu'on appelle le temps de location DHCP.
 
-Les deux premières lignes correspondent à la durée d'affectation d'une adresse IP.
-
+max-lease-time : durée maximale du bail 
+Cette durée correspond à la durée maximale du bail de la configuration donnée en secondes.
 4. 
+La modification à faire : 
 
-```bash
-INTERFACESv4="eth0"
+```
+INTERFACESv4="enp0s8"
 ```
 
 5.
-
-```bash
-$ sudo dhcpd -t
-$ sudo systemctl restart isc-dhcp-server
-$ sudo systemctl status isc-dhcp-server
+On fait : 
+```
+systemctl restart isc-dhcp-server
+```
+Et pour vérifier si cela a fonctionné on fait :
+```
+sudo systemctl status isc-dhcp-server
 ```
 
 6.
 
-```bash
-$ sudo apt-get purge cloud-init
-$ sudo hostnamectl set-hostname client.tpadmin.local
+```
+sudo apt-get purge cloud-init
+sudo hostnamectl set-hostname client.tpadmin.local
 ```
 
 7. 
 
-```bash
-$ sudo tail -f /var/log/syslog
+```
+sudo tail -f /var/log/syslog
 ```
 
-Le client a désormais une adresse IP.
+DHCPDISCOVER : Le client diffuse un paquet DHCPDISCOVER. C'est un message diffusé à l'ensemble des ordinateurs du sous-réseau. (Le seul équipement à pouvoir répondre est le serveur DHCP)
 
+DHCPOFFER : Tout serveur DHCP présent sur le sous-réseau doit être en mesure de répondre en émettant un paquet DHCPOFFER. Et fournit au client une adresse potentielle.
+ 
+DHCPREQUEST : Le serveur recoit un paquet DHCPREQUEST émis par le client. Les serveurs qui n'ont pas été élus par le message DHCPREQUEST se servent de ce dernier comme notification pour signifier le refus du client.
+
+DHCPACH : Le serveur sélectionné stocke l'adresse ip du client dans sa base de données et répond par un message DHCPACK.
 
 8. 
 
-```bash
-$ sudo cat /var/lib/dhcp/dhcpd.leases
-$ sudo dhcp-lease-list
+```
+sudo cat /var/lib/dhcp/dhcpd.leases
+sudo dhcp-lease-list
 ```
 
 Le fichier /var/lib/dhcp/dhcpd.leases contient les informations sur les adresses IP attribuées. 
@@ -140,15 +186,15 @@ La commande dhcp-lease-list affiche les informations sur les adresses IP attribu
 
 9. 
 
-```bash
-$ ping 192.168.100.1
+```
+ping 192.168.100.1
 ```
 
 Les deux machines peuvent communiquer.
 
 10. 
 
-```bash
+```
 deny unknown-clients; #empêche l'attribution d'une adresse IP à une
 #station dont l'adresse MAC est inconnue du serveur
 
@@ -158,8 +204,8 @@ host client {
 }
 ```
 
-```bash
-$ sudo dhclient -v
+```
+sudo dhclient -v
 ```
 
 La nouvelle configuration a bien été appliquée sur le client.
@@ -170,21 +216,21 @@ La nouvelle configuration a bien été appliquée sur le client.
 
 1. 
 
-```bash
-$ sudo nano /etc/sysctl.conf
-$ sudo sysctl -p /etc/sysctl.conf
-$ sudo sysctl net.ipv4.ip_forward
+```
+sudo nano /etc/sysctl.conf
+sudo sysctl -p /etc/sysctl.conf
+sudo sysctl net.ipv4.ip_forward
 ```
 
 2.
 
-```bash
+```
 sudo iptables --table nat --append POSTROUTING --out-interface enp0s3 -j MASQUERADE
 ```
 
 
-```bash
-$ ping 1.1.1.1
+```
+ping 1.1.1.1
 ```
 
 On arrive à émettre un ping depuis le client.
@@ -193,31 +239,31 @@ On arrive à émettre un ping depuis le client.
 
 1. 
 
-```bash
-$ sudo apt-get install bind9
-$ sudo systemctl status bind9
+```
+sudo apt-get install bind9
+sudo systemctl status bind9
 ```
 
 2. 
 
-```bash
-$ sudo nano /etc/bind/named.conf.options
-$ sudo systemctl restart bind9
+```
+sudo nano /etc/bind/named.conf.options
+sudo systemctl restart bind9
 ```
 
 3. 
 
-```bash
-$ ping www.google.fr
+```
+ping www.google.fr
 ```
 
 On arrive à émettre un ping vers www.google.fr depuis le client.
 
 4. 
 
-```bash
-$ sudo apt-get install lynx
-$ lynx fr.wikipedia.org
+```
+sudo apt-get install lynx
+lynx fr.wikipedia.org
 ```
 
 On arrive à surfer sur fr.wikipedia.org depuis le client.
@@ -235,9 +281,9 @@ zone "tpadmin.local" IN {
 
 2.
 
-```bash
-$ sudo cp /etc/bind/db.local /etc/bind/db.tpadmin.local
-$ sudo nano /etc/bind/db.tpadmin.local
+```
+sudo cp /etc/bind/db.local /etc/bind/db.tpadmin.local
+sudo nano /etc/bind/db.tpadmin.local
 ```
 
 3. 
@@ -249,25 +295,25 @@ zone "100.168.192.in-addr.arpa" {
 };
 ```
 
-```bash
-$ sudo cp /etc/bind/db.127 /etc/bind/db.192.168.100
-$ sudo nano /etc/bind/db.192.168.100
+```
+sudo cp /etc/bind/db.127 /etc/bind/db.192.168.100
+sudo nano /etc/bind/db.192.168.100
 ```
 
 4.
 
-```bash
-$ sudo named-checkconf named.conf.local
-$ sudo named-checkzone tpadmin.local /etc/bind/db.tpadmin.local
-$ sudo named-checkzone 100.168.192.in-addr.arpa /etc/bind/db.192.168.100
+```
+sudo named-checkconf named.conf.local
+sudo named-checkzone tpadmin.local /etc/bind/db.tpadmin.local
+sudo named-checkzone 100.168.192.in-addr.arpa /etc/bind/db.192.168.100
 ```
 
-```bash
-$ sudo nano /etc/systemd/resolved.conf
+```
+sudo nano /etc/systemd/resolved.conf
 ```
 
 5. 
-```bash
-$ sudo systemctl restart bind9
+```
+sudo systemctl restart bind9
 ```
 Toutes les machines peuvent être pingués.
